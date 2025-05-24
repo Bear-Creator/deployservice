@@ -1,0 +1,12 @@
+- name: Install Podman
+  package:
+    name: podman
+    state: present
+
+- name: Run container
+  command: podman run -d -p 80:80 {{ image }}
+  register: container_result
+
+- name: Debug container output
+  debug:
+    msg: "Container started with ID: {{ container_result.stdout }}"

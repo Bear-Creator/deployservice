@@ -1,0 +1,6 @@
+- hosts: target
+  become: yes
+  vars:
+    image: "{{ image }}"
+  roles:
+    - podman
