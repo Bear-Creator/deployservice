@@ -1,0 +1,81 @@
+- name: Ensure backups directory exists on target
+  file:
+    path: /tmp/backups
+    state: directory
+    mode: '0755'
+
+- name: Copy backup image to target
+  copy:
+    src: "{{ backup_image_file }}"
+    dest: /tmp/backups/{{ backup_image_file | basename }}
+    mode: '0644'
+
+- name: Copy database dump to target
+  copy:
+    src: "{{ backup_db_file }}"
+    dest: /tmp/backups/{{ backup_db_file | basename }}
+    mode: '0644'
+  when: db_type is defined and backup_db_file is defined
+
+- name: Load backup image
+  command: podman load -i /tmp/backups/{{ backup_image_file | basename }}
+  register: load_result
+
+- name: Create Podman volume
+  command: podman volume create {{ volume_name | default('app_data') }}
+  when: volume_name is defined
+
+- name: Run restored non-database container
+  command: podman run -d -p 80:80 -v {{ volume_name | default('app_data') }}:/app/data --name {{ container_name }} {{ backup_image_name }}
+  when: db_type is not defined and load_result.rc == 0
+  register: container_result
+
+- name: Run restored PostgreSQL container
+  command: >
+    podman run -d -p 5432:5432
+    -v {{ volume_name | default('app_data') }}:/var/lib/postgresql/data
+    -e POSTGRES_USER={{ db_user }}
+    -e POSTGRES_PASSWORD={{ db_password }}
+    -e POSTGRES_DB={{ db_name }}
+    --name {{ container_name }}
+    {{ backup_image_name }}
+  when: db_type == "postgres" and load_result.rc == 0
+  register: container_result
+
+- name: Run restored MySQL container
+  command: >
+    podman run -d -p 3306:3306
+    -v {{ volume_name | default('app_data') }}:/var/lib/mysql
+    -e MYSQL_USER={{ db_user }}
+    -e MYSQL_PASSWORD={{ db_password }}
+    -e MYSQL_DATABASE={{ db_name }}
+    -e MYSQL_ROOT_PASSWORD={{ db_password }}
+    --name {{ container_name }}
+    {{ backup_image_name }}
+  when: db_type == "mysql" and load_result.rc == 0
+  register: container_result
+
+- name: Restore PostgreSQL database
+  command: >
+    podman exec {{ container_name }}
+    psql -U {{ db_user }} -d {{ db_name }} -f /tmp/backups/{{ backup_db_file | basename }}
+  environment:
+    PGPASSWORD: "{{ db_password }}"
+  when: db_type == "postgres" and load_result.rc == 0 and backup_db_file is defined
+  register: pg_restore_result
+
+- name: Restore MySQL database
+  command: >
+    podman exec {{ container_name }}
+    mysql -u {{ db_user }} -p{{ db_password }} {{ db_name }} < /tmp/backups/{{ backup_db_file | basename }}
+  when: db_type == "mysql" and load_result.rc == 0 and backup_db_file is defined
+  register: mysql_restore_result
+
+- name: Clean up backup files on target
+  file:
+    path: /tmp/backups/{{ item | basename }}
+    state: absent
+  loop:
+    - "{{ backup_image_file }}"
+    - "{{ backup_db_file }}"
+  when: load_result.rc == 0

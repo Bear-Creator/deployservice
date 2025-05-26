@@ -1,0 +1,54 @@
+- name: Get container ID
+  command: podman ps -q -f name={{ container_name }}
+  register: container_id
+  failed_when: container_id.stdout == ""
+
+- name: Create backup image
+  command: podman commit {{ container_id.stdout }} {{ backup_image_name }}
+  register: commit_result
+
+- name: Save backup image to file
+  command: podman save -o /tmp/{{ backup_image_name }}.tar {{ backup_image_name }}
+  when: commit_result.rc == 0
+
+- name: Backup PostgreSQL database
+  command: >
+    podman exec {{ container_id.stdout }}
+    pg_dump -U {{ db_user }} -d {{ db_name }} -f /tmp/{{ db_name }}_dump.sql
+  environment:
+    PGPASSWORD: "{{ db_password }}"
+  when: db_type == "postgres" and commit_result.rc == 0
+  register: pg_dump_result
+
+- name: Backup MySQL database
+  command: >
+    podman exec {{ container_id.stdout }}
+    mysqldump -u {{ db_user }} -p{{ db_password }} {{ db_name }} > /tmp/{{ db_name }}_dump.sql
+  when: db_type == "mysql" and commit_result.rc == 0
+  register: mysql_dump_result
+
+- name: Copy backup image to control node
+  fetch:
+    src: /tmp/{{ backup_image_name }}.tar
+    dest: ./backups/{{ backup_image_name }}-{{ ansible_date_time.iso8601 }}.tar
+    flat: yes
+  when: commit_result.rc == 0
+
+- name: Copy database dump to control node
+  fetch:
+    src: /tmp/{{ db_name }}_dump.sql
+    dest: ./backups/{{ db_name }}-{{ ansible_date_time.iso8601 }}.sql
+    flat: yes
+  when: db_type is defined and (pg_dump_result.rc == 0 or mysql_dump_result.rc == 0)
+
+- name: Clean up backup image file on target
+  file:
+    path: /tmp/{{ backup_image_name }}.tar
+    state: absent
+  when: commit_result.rc == 0
+
+- name: Clean up database dump file on target
+  file:
+    path: /tmp/{{ db_name }}_dump.sql
+    state: absent
+  when: db_type is defined and (pg_dump_result.rc == 0 or mysql_dump_result.rc == 0)

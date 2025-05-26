@@ -1,0 +1,11 @@
+- hosts: target
+  become: yes
+  vars:
+    container_name: "{{ container_name }}"
+    volume_name: "{{ volume_name }}"
+  roles:
+    - podman
+  tasks:
+    - import_role:
+        name: podman
+        tasks_from: remove.yml

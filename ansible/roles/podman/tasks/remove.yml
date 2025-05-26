@@ -1,0 +1,14 @@
+- name: Stop container
+  command: podman stop {{ container_name }}
+  register: stop_result
+  ignore_errors: yes
+
+- name: Remove container
+  command: podman rm {{ container_name }}
+  when: stop_result.rc == 0 or stop_result.rc != 0
+  register: rm_result
+
+- name: Remove Podman volume
+  command: podman volume rm {{ volume_name | default('app_data') }}
+  when: volume_name is defined
+  register: volume_rm_result

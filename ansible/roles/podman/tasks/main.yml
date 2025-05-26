@@ -3,8 +3,48 @@
     name: podman
     state: present
 
-- name: Run container
-  command: podman run -d -p 80:80 {{ image }}
+- name: Install database client tools
+  package:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - postgresql-client
+    - mysql-client
+  when: db_type is defined
+
+- name: Create Podman volume
+  command: podman volume create {{ volume_name | default('app_data') }}
+  when: volume_name is defined
+  register: volume_result
+
+- name: Run non-database container
+  command: podman run -d -p 80:80 -v {{ volume_name | default('app_data') }}:/app/data --name {{ container_name | default('app') }} {{ image }}
+  when: db_type is not defined
+  register: container_result
+
+- name: Run PostgreSQL container
+  command: >
+    podman run -d -p 5432:5432
+    -v {{ volume_name | default('app_data') }}:/var/lib/postgresql/data
+    -e POSTGRES_USER={{ db_user }}
+    -e POSTGRES_PASSWORD={{ db_password }}
+    -e POSTGRES_DB={{ db_name }}
+    --name {{ container_name | default('postgres') }}
+    {{ image }}
+  when: db_type == "postgres"
+  register: container_result
+
+- name: Run MySQL container
+  command: >
+    podman run -d -p 3306:3306
+    -v {{ volume_name | default('app_data') }}:/var/lib/mysql
+    -e MYSQL_USER={{ db_user }}
+    -e MYSQL_PASSWORD={{ db_password }}
+    -e MYSQL_DATABASE={{ db_name }}
+    -e MYSQL_ROOT_PASSWORD={{ db_password }}
+    --name {{ container_name | default('mysql') }}
+    {{ image }}
+  when: db_type == "mysql"
   register: container_result
 
 - name: Debug container output

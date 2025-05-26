@@ -2,5 +2,11 @@
   become: yes
   vars:
     image: "{{ image }}"
+    volume_name: "{{ volume_name }}"
+    db_type: "{{ db_type }}"
+    db_user: "{{ db_user }}"
+    db_password: "{{ db_password }}"
+    db_name: "{{ db_name }}"
+    container_name: "{{ container_name }}"
   roles:
     - podman
