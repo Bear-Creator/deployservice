@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "yandex" {
-  service_account_key_file = file("service_account_key.json") # Path to your service account JSON key
+  service_account_key_file = file("service_account_key.json")
   cloud_id                = "<your-cloud-id>"
   folder_id               = "<your-folder-id>"
   zone                    = "ru-central1-a"
@@ -48,7 +48,7 @@ resource "yandex_compute_instance" "app_vm" {
   }
 
   metadata = {
-    ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}" # SSH public key for Ansible
+    ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
   }
 }
 
