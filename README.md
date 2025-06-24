@@ -1,26 +1,28 @@
 # DeployService API
 
-Современный API для развертывания, резервного копирования, восстановления и удаления контейнеризированных приложений с использованием Terraform и Ansible.
+Современный асинхронный API для развертывания, резервного копирования, восстановления и удаления контейнеризированных приложений с использованием Terraform, Ansible и Podman.
 
 ## Возможности
 
-- **Развертывание приложений**: Автоматическое развертывание контейнеризированных приложений
-- **Резервное копирование**: Создание резервных копий контейнеров и баз данных
-- **Восстановление**: Восстановление приложений из резервных копий
-- **Удаление**: Безопасное удаление приложений и связанных ресурсов
-- **Поддержка баз данных**: PostgreSQL и MySQL
-- **Асинхронные операции**: Все операции выполняются в фоновом режиме
-- **Callback уведомления**: Уведомления о завершении операций
-- **Структурированное логирование**: Подробные логи всех операций
+- **Автоматическое развертывание** контейнеризированных приложений на удалённых серверах
+- **Резервное копирование** контейнеров и баз данных (PostgreSQL, MySQL)
+- **Восстановление** приложений и БД из резервных копий
+- **Удаление** приложений и связанных ресурсов
+- **Callback-уведомления** о завершении операций
+- **Асинхронные фоновые задачи** (FastAPI BackgroundTasks)
+- **Структурированное логирование** (structlog)
+- **Работа с inventory через API** (добавление серверов)
+- **Валидация входных данных** (Pydantic)
 
 ## 🛠 Технологии
 
-- **FastAPI** - современный веб-фреймворк для Python
-- **Pydantic** - валидация данных и сериализация
-- **Terraform** - управление инфраструктурой
-- **Ansible** - автоматизация развертывания
-- **Podman** - контейнеризация
-- **Structlog** - структурированное логирование
+- **FastAPI** — современный асинхронный веб-фреймворк
+- **Pydantic** — строгая валидация и сериализация данных
+- **Terraform** — управление инфраструктурой
+- **Ansible** — автоматизация развертывания и управления
+- **Podman** — контейнеризация
+- **Structlog** — структурированное логирование
+- **aiohttp** — асинхронные HTTP-запросы для callback
 
 ## Требования
 
@@ -51,68 +53,56 @@ source .venv/bin/activate  # Linux/Mac
 
 ```bash
 pip install -e .
+# Для разработки:
+pip install -e ".[dev]"
+# или через Makefile:
+make dev
 ```
 
 ### 4. Настройка окружения
 
-Скопируйте файл конфигурации:
+Скопируйте пример конфигурации:
 
 ```bash
 cp env.example .env
 ```
 
-Отредактируйте `.env` файл под ваши нужды:
-
-```env
-# API Settings
-DEBUG=false
-HOST=0.0.0.0
-PORT=8000
-
-# Logging
-LOG_LEVEL=INFO
-LOG_FORMAT=json
-
-# Terraform
-TERRAFORM_DIR=terraform
-
-# Ansible
-ANSIBLE_DIR=ansible
-ANSIBLE_INVENTORY_DIR=ansible/inventory
-
-# Backup
-BACKUP_DIR=backups
-
-# Callback
-CALLBACK_TIMEOUT=30
-CALLBACK_RETRIES=3
-
-# Security
-ALLOWED_HOSTS=["*"]
-```
+Отредактируйте `.env` под ваши нужды (см. описание переменных в env.example).
 
 ## Запуск
 
-### Разработка
+### В режиме разработки
 
 ```bash
+make run
+# или
 python -m api.main
 ```
 
-### Продакшн
+### В продакшн-режиме
 
 ```bash
+make run-prod
+# или
 uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
 
-## API Endpoints
+## Основные команды Makefile
 
-### Развертывание приложения
+- `make dev` — установка dev-зависимостей
+- `make run` — запуск в dev-режиме
+- `make run-prod` — запуск в продакшн-режиме
+- `make test` — запуск тестов
+- `make lint` — линтинг (flake8, mypy)
+- `make format` — автоформатирование (black, isort)
+- `make check` — форматирование, линтинг и тесты
+- `make clean` — очистка временных файлов
 
-```http
-POST /deploy
-Content-Type: application/json
+## API Endpoints (примеры)
 
+### POST /deploy
+
+```json
 {
   "server_ip": "192.168.1.100",
   "ssh_user": "ubuntu",
@@ -127,12 +117,9 @@ Content-Type: application/json
 }
 ```
 
-### Резервное копирование
+### POST /backup
 
-```http
-POST /backup
-Content-Type: application/json
-
+```json
 {
   "server_ip": "192.168.1.100",
   "ssh_user": "ubuntu",
@@ -148,12 +135,9 @@ Content-Type: application/json
 }
 ```
 
-### Восстановление
+### POST /restore
 
-```http
-POST /restore
-Content-Type: application/json
-
+```json
 {
   "server_ip": "192.168.1.100",
   "ssh_user": "ubuntu",
@@ -170,12 +154,9 @@ Content-Type: application/json
 }
 ```
 
-### Удаление
+### POST /remove
 
-```http
-POST /remove
-Content-Type: application/json
-
+```json
 {
   "server_ip": "192.168.1.100",
   "ssh_user": "ubuntu",
@@ -186,91 +167,61 @@ Content-Type: application/json
 }
 ```
 
-## Тестирование
+### POST /add-server
 
-### Запуск тестов
-
-```bash
-pytest
+```json
+{
+  "server_ip": "192.168.1.100",
+  "ssh_user": "ubuntu",
+  "ssh_key_path": "/path/to/key.pem"
+}
 ```
 
-### Проверка типов
+## Тестирование и разработка
 
-```bash
-mypy api/
-```
-
-### Форматирование кода
-
-```bash
-black api/
-isort api/
-```
-
-### Линтинг
-
-```bash
-flake8 api/
-```
+- Запуск тестов: `make test` или `pytest`
+- Проверка типов: `make lint` или `mypy api/`
+- Форматирование: `make format` или `black api/ tests/ && isort api/ tests/`
+- Линтинг: `flake8 api/ tests/`
 
 ## Структура проекта
 
 ```
 DeployService/
 ├── api/
-│   ├── __init__.py
-│   ├── main.py              # Основное приложение FastAPI
-│   ├── config.py            # Конфигурация приложения
+│   ├── main.py              # FastAPI приложение
+│   ├── config.py            # Конфигурация
 │   ├── exceptions.py        # Кастомные исключения
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── base.py          # Базовые модели
-│   │   └── deploy.py        # Модели запросов
-│   ├── services/
-│   │   ├── __init__.py
-│   │   └── deployment.py    # Сервисы развертывания
-│   └── utils/
-│       ├── __init__.py
-│       ├── ansible.py       # Утилиты Ansible
-│       ├── callback.py      # Утилиты callback
-│       ├── logger.py        # Система логирования
-│       └── terraform.py     # Утилиты Terraform
+│   ├── models/              # Pydantic-модели
+│   ├── services/            # Бизнес-логика (развертывание и др.)
+│   └── utils/               # Утилиты (Ansible, Terraform, callback, логгер)
 ├── ansible/
-│   ├── playbooks/           # Ansible плейбуки
+│   ├── playbooks/           # Ansible плейбуки (deploy, backup, restore, remove)
 │   └── roles/               # Ansible роли
 ├── terraform/               # Terraform конфигурации
 ├── tests/                   # Тесты
-├── requirements.txt         # Зависимости Python
-├── pyproject.toml          # Конфигурация проекта
-├── env.example             # Пример конфигурации
-└── README.md               # Документация
+├── requirements.txt         # Зависимости
+├── pyproject.toml           # Конфигурация проекта
+├── env.example              # Пример .env
+└── README.md                # Документация
 ```
 
 ## Конфигурация
 
-### Terraform
-
-Убедитесь, что в директории `terraform/` есть файл `main.tf` с конфигурацией инфраструктуры.
-
-### Ansible
-
-Убедитесь, что в директории `ansible/playbooks/` есть следующие плейбуки:
-- `deploy.yml` - развертывание приложения
-- `backup.yml` - создание резервной копии
-- `restore.yml` - восстановление из резервной копии
-- `remove.yml` - удаление приложения
+- Все переменные окружения настраиваются через `.env` (см. `env.example`)
+- Ключевые параметры: пути к директориям, настройки логирования, callback, разрешённые хосты
 
 ## Логирование
 
-API использует структурированное логирование с помощью `structlog`. Логи можно настроить через переменные окружения:
-
-- `LOG_LEVEL` - уровень логирования (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-- `LOG_FORMAT` - формат логов (json, console)
+- Используется `structlog` для структурированных логов
+- Управление уровнем и форматом логирования через переменные окружения (`LOG_LEVEL`, `LOG_FORMAT`)
 
 ## Безопасность
 
-- Валидация всех входных данных
-- Безопасная работа с файлами
-- Проверка SSH ключей
-- Валидация IP адресов
-- Обработка ошибок без утечки информации
+- Валидация всех входных данных (IP, SSH-ключи, логика Pydantic)
+- Безопасная работа с файлами и ключами
+- Обработка ошибок без утечки чувствительной информации
+
+---
+
+**DeployService** — быстрый и безопасный способ автоматизировать работу с контейнерами и инфраструктурой.
