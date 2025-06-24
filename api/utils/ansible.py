@@ -97,14 +97,19 @@ class AnsibleManager:
     ) -> subprocess.CompletedProcess[str]:
         """Run Ansible playbook with error handling."""
         try:
-            playbook_path = self.ansible_dir / "playbooks" / playbook
-            inventory_path = self.inventory_dir / inventory
+            # Формируем относительные пути для запуска из ansible
+            playbook_path = Path("playbooks") / playbook
+            inventory_path = Path("inventory") / inventory
 
-            if not playbook_path.exists():
-                raise AnsibleError(f"Playbook not found: {playbook_path}")
+            if not (self.ansible_dir / playbook_path).exists():
+                raise AnsibleError(
+                    f"Playbook not found: {self.ansible_dir / playbook_path}"
+                )
 
-            if not inventory_path.exists():
-                raise AnsibleError(f"Inventory not found: {inventory_path}")
+            if not (self.ansible_dir / inventory_path).exists():
+                raise AnsibleError(
+                    f"Inventory not found: {self.ansible_dir / inventory_path}"
+                )
 
             # Build command
             command = [
@@ -125,8 +130,8 @@ class AnsibleManager:
 
             logger.debug(
                 "Running Ansible playbook",
-                playbook=playbook,
-                inventory=inventory,
+                playbook=str(playbook_path),
+                inventory=str(inventory_path),
                 extra_vars=extra_vars,
                 tags=tags,
             )
@@ -135,13 +140,14 @@ class AnsibleManager:
                 command,
                 capture_output=True,
                 text=True,
-                check=False,  # We'll handle errors manually
+                check=False,
+                cwd=str(self.ansible_dir),
             )
 
             if result.returncode != 0:
                 logger.error(
                     "Ansible playbook failed",
-                    playbook=playbook,
+                    playbook=str(playbook_path),
                     returncode=result.returncode,
                     stderr=result.stderr,
                 )
@@ -154,7 +160,9 @@ class AnsibleManager:
                     },
                 )
 
-            logger.info("Ansible playbook completed successfully", playbook=playbook)
+            logger.info(
+                "Ansible playbook completed successfully", playbook=str(playbook_path)
+            )
             return result
 
         except subprocess.SubprocessError as e:
@@ -165,7 +173,6 @@ class AnsibleManager:
         self,
         server_ip: str,
         ssh_user: str,
-        ssh_key_path: str,
         container_image: str,
         volume_name: str,
         db_config: Optional[Dict[str, Any]] = None,
@@ -174,14 +181,12 @@ class AnsibleManager:
         extra_vars = {
             "server_ip": server_ip,
             "ssh_user": ssh_user,
-            "ssh_key_path": ssh_key_path,
-            "container_image": container_image,
+            "image": container_image,
+            "container_name": container_image.split(":")[0],
             "volume_name": volume_name,
         }
-
         if db_config:
             extra_vars.update(db_config)
-
         self._run_playbook(
             playbook="deploy.yml",
             inventory="hosts.yml",
@@ -193,7 +198,6 @@ class AnsibleManager:
         self,
         server_ip: str,
         ssh_user: str,
-        ssh_key_path: str,
         container_name: str,
         backup_image_name: str,
         volume_name: str,
@@ -203,15 +207,12 @@ class AnsibleManager:
         extra_vars = {
             "server_ip": server_ip,
             "ssh_user": ssh_user,
-            "ssh_key_path": ssh_key_path,
             "container_name": container_name,
             "backup_image_name": backup_image_name,
             "volume_name": volume_name,
         }
-
         if db_config:
             extra_vars.update(db_config)
-
         self._run_playbook(
             playbook="backup.yml",
             inventory="hosts.yml",
@@ -223,7 +224,6 @@ class AnsibleManager:
         self,
         server_ip: str,
         ssh_user: str,
-        ssh_key_path: str,
         container_name: str,
         backup_image_file: str,
         backup_db_file: Optional[str],
@@ -234,19 +234,14 @@ class AnsibleManager:
         extra_vars = {
             "server_ip": server_ip,
             "ssh_user": ssh_user,
-            "ssh_key_path": ssh_key_path,
             "container_name": container_name,
             "backup_image_file": backup_image_file,
             "volume_name": volume_name,
         }
-
-        # Add backup_db_file if provided
         if backup_db_file:
             extra_vars["backup_db_file"] = backup_db_file
-
         if db_config:
             extra_vars.update(db_config)
-
         self._run_playbook(
             playbook="restore.yml",
             inventory="hosts.yml",
@@ -258,7 +253,6 @@ class AnsibleManager:
         self,
         server_ip: str,
         ssh_user: str,
-        ssh_key_path: str,
         container_name: str,
         volume_name: str,
     ) -> None:
@@ -266,11 +260,9 @@ class AnsibleManager:
         extra_vars = {
             "server_ip": server_ip,
             "ssh_user": ssh_user,
-            "ssh_key_path": ssh_key_path,
             "container_name": container_name,
             "volume_name": volume_name,
         }
-
         self._run_playbook(
             playbook="remove.yml",
             inventory="hosts.yml",
@@ -278,25 +270,21 @@ class AnsibleManager:
             tags=["remove"],
         )
 
-    def test_connection(self, server_ip: str, ssh_user: str, ssh_key_path: str) -> bool:
+    def test_connection(self, server_ip: str, ssh_user: str) -> bool:
         """Test SSH connection to server."""
         try:
             extra_vars = {
                 "server_ip": server_ip,
                 "ssh_user": ssh_user,
-                "ssh_key_path": ssh_key_path,
             }
-
             self._run_playbook(
                 playbook="test_connection.yml",
                 inventory="hosts.yml",
                 extra_vars=extra_vars,
                 tags=["test"],
             )
-
             logger.info("SSH connection test successful", server_ip=server_ip)
             return True
-
         except AnsibleError as e:
             logger.warning(
                 "SSH connection test failed", server_ip=server_ip, error=str(e)

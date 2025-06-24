@@ -1,3 +1,11 @@
+- name: Ensure Docker Hub is default registry for Podman
+  become: true
+  copy:
+    dest: /etc/containers/registries.conf
+    content: |
+      [registries.search]
+      registries = ["docker.io"]
+
 - name: Install Podman
   package:
     name: podman
@@ -10,33 +18,38 @@
   loop:
     - postgresql-client
     - mysql-client
-  when: db_type is defined
+  when: db_type is defined and db_type
 
 - name: Create Podman volume
   command: podman volume create {{ volume_name | default('app_data') }}
   when: volume_name is defined
   register: volume_result
+  ignore_errors: true
+
+- name: Remove existing container if present
+  command: podman rm -f {{ container_name | default('app') }}
+  ignore_errors: true
 
 - name: Run non-database container
-  command: podman run -d -p 80:80 -v {{ volume_name | default('app_data') }}:/app/data --name {{ container_name | default('app') }} {{ image }}
+  command: podman run --replace -d -p 80:80 -v {{ volume_name | default('app_data') }}:/app/data --name {{ container_name | default('app') }} {{ image }}
   when: db_type is not defined
   register: container_result
 
 - name: Run PostgreSQL container
   command: >
-    podman run -d -p 5432:5432
+    podman run --replace -d -p 5432:5432
     -v {{ volume_name | default('app_data') }}:/var/lib/postgresql/data
     -e POSTGRES_USER={{ db_user }}
     -e POSTGRES_PASSWORD={{ db_password }}
     -e POSTGRES_DB={{ db_name }}
     --name {{ container_name | default('postgres') }}
     {{ image }}
-  when: db_type == "postgres"
+  when: db_type is defined and db_type == "postgres"
   register: container_result
 
 - name: Run MySQL container
   command: >
-    podman run -d -p 3306:3306
+    podman run --replace -d -p 3306:3306
     -v {{ volume_name | default('app_data') }}:/var/lib/mysql
     -e MYSQL_USER={{ db_user }}
     -e MYSQL_PASSWORD={{ db_password }}
@@ -44,9 +57,9 @@
     -e MYSQL_ROOT_PASSWORD={{ db_password }}
     --name {{ container_name | default('mysql') }}
     {{ image }}
-  when: db_type == "mysql"
+  when: db_type is defined and db_type == "mysql"
   register: container_result
 
 - name: Debug container output
   debug:
-    msg: "Container started with ID: {{ container_result.stdout }}"
+    msg: "Container started with ID: {{ container_result.stdout | default('N/A') }}"

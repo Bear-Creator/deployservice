@@ -1,10 +1,10 @@
 # DeployService API
 
-Современный асинхронный API для развертывания, резервного копирования, восстановления и удаления контейнеризированных приложений с использованием Terraform, Ansible и Podman.
+Современный асинхронный API для автоматизированного развертывания, резервного копирования, восстановления и удаления контейнеризированных приложений с помощью Ansible, Podman и Terraform.
 
 ## Возможности
 
-- **Автоматическое развертывание** контейнеризированных приложений на удалённых серверах
+- **Автоматическое развертывание** контейнеров на новых и существующих серверах
 - **Резервное копирование** контейнеров и баз данных (PostgreSQL, MySQL)
 - **Восстановление** приложений и БД из резервных копий
 - **Удаление** приложений и связанных ресурсов
@@ -13,79 +13,69 @@
 - **Структурированное логирование** (structlog)
 - **Работа с inventory через API** (добавление серверов)
 - **Валидация входных данных** (Pydantic)
+- **Полная автоматизация подготовки серверов** (установка Python, Podman, настройка sudo, добавление ключа)
+- **Устойчивость к повторным запускам и ошибкам** (Ansible playbooks)
+- **Интеграционные и unit-тесты**
 
-## 🛠 Технологии
+## Технологии
 
-- **FastAPI** — современный асинхронный веб-фреймворк
-- **Pydantic** — строгая валидация и сериализация данных
-- **Terraform** — управление инфраструктурой
+- **FastAPI** — асинхронный веб-фреймворк
+- **Pydantic** — строгая валидация данных
 - **Ansible** — автоматизация развертывания и управления
 - **Podman** — контейнеризация
+- **Terraform** — управление инфраструктурой
 - **Structlog** — структурированное логирование
-- **aiohttp** — асинхронные HTTP-запросы для callback
+- **pytest, httpx** — тестирование
 
 ## Требования
 
 - Python 3.8+
-- Terraform
 - Ansible
+- Terraform
 - Podman (на целевых серверах)
 
-## Установка
+## Установка и запуск
 
-### 1. Клонирование репозитория
+1. **Клонируйте репозиторий:**
+   ```bash
+   git clone <repository-url>
+   cd DeployService
+   ```
 
-```bash
-git clone <repository-url>
-cd DeployService
-```
+2. **Создайте виртуальное окружение:**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   ```
 
-### 2. Создание виртуального окружения
+3. **Установите зависимости:**
+   ```bash
+   pip install -e .
+   # Для разработки:
+   pip install -e ".[dev]"
+   # или через Makefile:
+   make dev
+   ```
 
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# или
-.venv\Scripts\activate  # Windows
-```
+4. **Скопируйте и настройте переменные окружения:**
+   ```bash
+   cp env.example .env
+   # Отредактируйте .env под ваши нужды
+   ```
 
-### 3. Установка зависимостей
-
-```bash
-pip install -e .
-# Для разработки:
-pip install -e ".[dev]"
-# или через Makefile:
-make dev
-```
-
-### 4. Настройка окружения
-
-Скопируйте пример конфигурации:
-
-```bash
-cp env.example .env
-```
-
-Отредактируйте `.env` под ваши нужды (см. описание переменных в env.example).
-
-## Запуск
-
-### В режиме разработки
-
-```bash
-make run
-# или
-python -m api.main
-```
-
-### В продакшн-режиме
-
-```bash
-make run-prod
-# или
-uvicorn api.main:app --host 0.0.0.0 --port 8000
-```
+5. **Запуск:**
+   - В режиме разработки:
+     ```bash
+     make run
+     # или
+     python -m api.main
+     ```
+   - В продакшн-режиме:
+     ```bash
+     make run-prod
+     # или
+     uvicorn api.main:app --host 0.0.0.0 --port 8000
+     ```
 
 ## Основные команды Makefile
 
@@ -100,13 +90,31 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 ## API Endpoints (примеры)
 
-### POST /deploy
+**Внимание!** Поддержка приватных ключей (`ssh_key_path`) полностью удалена. Теперь серверы добавляются только по IP и пользователю. Все операции требуют `server_id`, получаемый после добавления сервера.
+
+### POST /server/add
+
+Добавить сервер в inventory и автоматически подготовить его (установка Python, Podman, настройка sudo, добавление публичного ключа):
 
 ```json
 {
   "server_ip": "192.168.1.100",
-  "ssh_user": "ubuntu",
-  "ssh_key_path": "/path/to/key.pem",
+  "ssh_user": "ubuntu"
+}
+```
+Ответ:
+```json
+{
+  "status": "success",
+  "server_id": "..."
+}
+```
+
+### POST /deploy
+
+```json
+{
+  "server_id": "string",
   "container_image": "nginx:latest",
   "callback_url": "http://example.com/callback",
   "volume_name": "app_data",
@@ -121,9 +129,7 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 ```json
 {
-  "server_ip": "192.168.1.100",
-  "ssh_user": "ubuntu",
-  "ssh_key_path": "/path/to/key.pem",
+  "server_id": "string",
   "container_name": "my-app",
   "backup_image_name": "my-app-backup",
   "callback_url": "http://example.com/callback",
@@ -139,9 +145,7 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 ```json
 {
-  "server_ip": "192.168.1.100",
-  "ssh_user": "ubuntu",
-  "ssh_key_path": "/path/to/key.pem",
+  "server_id": "string",
   "container_name": "my-app",
   "backup_image_file": "backups/my-app-backup.tar",
   "callback_url": "http://example.com/callback",
@@ -158,28 +162,20 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 ```json
 {
-  "server_ip": "192.168.1.100",
-  "ssh_user": "ubuntu",
-  "ssh_key_path": "/path/to/key.pem",
+  "server_id": "string",
   "container_name": "my-app",
   "callback_url": "http://example.com/callback",
   "volume_name": "app_data"
 }
 ```
 
-### POST /add-server
+### GET /health
 
-```json
-{
-  "server_ip": "192.168.1.100",
-  "ssh_user": "ubuntu",
-  "ssh_key_path": "/path/to/key.pem"
-}
-```
+Проверка статуса API.
 
-## Тестирование и разработка
+## Тестирование
 
-- Запуск тестов: `make test` или `pytest`
+- Unit- и интеграционные тесты: `make test` или `pytest`
 - Проверка типов: `make lint` или `mypy api/`
 - Форматирование: `make format` или `black api/ tests/ && isort api/ tests/`
 - Линтинг: `flake8 api/ tests/`
@@ -196,10 +192,11 @@ DeployService/
 │   ├── services/            # Бизнес-логика (развертывание и др.)
 │   └── utils/               # Утилиты (Ansible, Terraform, callback, логгер)
 ├── ansible/
-│   ├── playbooks/           # Ansible плейбуки (deploy, backup, restore, remove)
-│   └── roles/               # Ansible роли
+│   ├── ansible.cfg          # Конфиг Ansible (roles_path, SSH)
+│   ├── playbooks/           # Ansible плейбуки (deploy, backup, restore, remove, setup_server)
+│   └── roles/               # Ansible роли (podman и др.)
 ├── terraform/               # Terraform конфигурации
-├── tests/                   # Тесты
+├── tests/                   # Тесты (unit, интеграционные)
 ├── requirements.txt         # Зависимости
 ├── pyproject.toml           # Конфигурация проекта
 ├── env.example              # Пример .env
@@ -218,10 +215,15 @@ DeployService/
 
 ## Безопасность
 
-- Валидация всех входных данных (IP, SSH-ключи, логика Pydantic)
+- Валидация всех входных данных (IP, логика Pydantic)
 - Безопасная работа с файлами и ключами
 - Обработка ошибок без утечки чувствительной информации
 
----
+## Ansible и автоматизация
 
-**DeployService** — быстрый и безопасный способ автоматизировать работу с контейнерами и инфраструктурой.
+- **ansible.cfg**: прописан roles_path, отключена проверка SSH-ключей
+- **setup_server.yml**: автоматическая подготовка нового сервера (Python, Podman, sudo, ключ)
+- **playbooks** устойчивы к повторным запускам, ошибкам создания volume/контейнера, отсутствию переменных
+- **registries.conf** для Podman настраивается автоматически
+- Скрипты для добавления публичного ключа и настройки sudo
+

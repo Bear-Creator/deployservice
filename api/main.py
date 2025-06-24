@@ -11,21 +11,20 @@ from fastapi.responses import JSONResponse
 from api.config import settings
 from api.exceptions import DeployServiceError
 from api.models.deploy import (
+    AddServerRequest,
     BackupRequest,
     DeployRequest,
     RemoveRequest,
     RestoreRequest,
-    AddServerRequest,
 )
 from api.services.deployment import (
+    add_server_to_inventory,
     backup_application,
     deploy_application,
+    get_ansible_host_line,
+    get_server,
     remove_application,
     restore_application,
-    add_server_to_inventory,
-    get_server,
-    get_ansible_host_line,
-    save_server,
 )
 from api.utils.logger import configure_logging
 
@@ -106,18 +105,27 @@ async def health_check() -> Dict[str, Any]:
     return {"status": "healthy", "service": "DeployService API"}
 
 
+def get_server_and_write_inventory(server_id: str) -> dict:
+    """Получить сервер по ID и записать его в inventory hosts.yml."""
+    server = get_server(server_id)
+    inventory_path = settings.ansible_inventory_dir / "hosts.yml"
+    with open(inventory_path, "w", encoding="utf-8") as f:
+        f.write(f"[target]\n{get_ansible_host_line(server)}")
+    return server
+
+
 @app.post("/deploy")
 async def deploy(
     request: DeployRequest, background_tasks: BackgroundTasks
 ) -> Dict[str, Any]:
     """Deploy a containerized application."""
-    logger.info("Deploy request received", container_image=request.container_image)
+    logger.info(
+        "Deploy request received",
+        container_image=request.container_image,
+    )
 
     try:
-        server = get_server(request.server_id)
-        inventory_path = settings.ansible_inventory_dir / "hosts.yml"
-        with open(inventory_path, "w", encoding="utf-8") as f:
-            f.write(f"[target]\n{get_ansible_host_line(server)}")
+        server = get_server_and_write_inventory(request.server_id)
         result = await deploy_application(request, background_tasks, server)
         return result
     except Exception as e:
@@ -130,13 +138,13 @@ async def backup(
     request: BackupRequest, background_tasks: BackgroundTasks
 ) -> Dict[str, Any]:
     """Backup a containerized application."""
-    logger.info("Backup request received", container_name=request.container_name)
+    logger.info(
+        "Backup request received",
+        container_name=request.container_name,
+    )
 
     try:
-        server = get_server(request.server_id)
-        inventory_path = settings.ansible_inventory_dir / "hosts.yml"
-        with open(inventory_path, "w", encoding="utf-8") as f:
-            f.write(f"[target]\n{get_ansible_host_line(server)}")
+        server = get_server_and_write_inventory(request.server_id)
         result = await backup_application(request, background_tasks, server)
         return result
     except Exception as e:
@@ -149,13 +157,13 @@ async def restore(
     request: RestoreRequest, background_tasks: BackgroundTasks
 ) -> Dict[str, Any]:
     """Restore a containerized application."""
-    logger.info("Restore request received", container_name=request.container_name)
+    logger.info(
+        "Restore request received",
+        container_name=request.container_name,
+    )
 
     try:
-        server = get_server(request.server_id)
-        inventory_path = settings.ansible_inventory_dir / "hosts.yml"
-        with open(inventory_path, "w", encoding="utf-8") as f:
-            f.write(f"[target]\n{get_ansible_host_line(server)}")
+        server = get_server_and_write_inventory(request.server_id)
         result = await restore_application(request, background_tasks, server)
         return result
     except Exception as e:
@@ -168,13 +176,13 @@ async def remove(
     request: RemoveRequest, background_tasks: BackgroundTasks
 ) -> Dict[str, Any]:
     """Remove a containerized application."""
-    logger.info("Remove request received", container_name=request.container_name)
+    logger.info(
+        "Remove request received",
+        container_name=request.container_name,
+    )
 
     try:
-        server = get_server(request.server_id)
-        inventory_path = settings.ansible_inventory_dir / "hosts.yml"
-        with open(inventory_path, "w", encoding="utf-8") as f:
-            f.write(f"[target]\n{get_ansible_host_line(server)}")
+        server = get_server_and_write_inventory(request.server_id)
         result = await remove_application(request, background_tasks, server)
         return result
     except Exception as e:
@@ -186,5 +194,7 @@ async def remove(
 async def add_server(request: AddServerRequest) -> dict:
     """Добавить сервер в Ansible inventory и получить server_id."""
     server_id = add_server_to_inventory(request)
-    logger.info("Server added to inventory", server_ip=request.server_ip, server_id=server_id)
+    logger.info(
+        "Server added to inventory", server_ip=request.server_ip, server_id=server_id
+    )
     return {"status": "success", "server_id": server_id}

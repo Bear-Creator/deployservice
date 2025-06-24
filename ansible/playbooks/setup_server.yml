@@ -1,0 +1,30 @@
+- hosts: target
+  become: yes
+  tasks:
+    - name: Ensure Python is installed
+      raw: test -e /usr/bin/python3 || (apt update && apt install -y python3) || (yum install -y python3)
+      changed_when: false
+
+    - name: Install Podman
+      package:
+        name: podman
+        state: present
+
+    - name: Ensure Docker Hub is default registry for Podman
+      copy:
+        dest: /etc/containers/registries.conf
+        content: |
+          [registries.search]
+          registries = ["docker.io"]
+
+    - name: Ensure sudo without password for user
+      lineinfile:
+        path: /etc/sudoers
+        line: '{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL'
+        validate: 'visudo -cf %s'
+
+    - name: Add deploy public key to authorized_keys
+      authorized_key:
+        user: '{{ ansible_user }}'
+        state: present
+        key: '{{ lookup("file", deploy_pubkey_path) }}'

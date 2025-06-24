@@ -330,3 +330,30 @@ cython_debug/
 local/
 dev/
 
+# IDE and editor folders
+.idea/
+
+# Ansible inventory and generated files
+ansible/inventory/hosts.yml
+ansible/inventory/servers.json
+
+# Backups and keys (do not store sensitive data in repo)
+backups/*
+key/*
+
+# Terraform local ignore
+terraform/.gitignore
+
+# Python cache and egg-info
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Test cache
+.pytest_cache/
+.mypy_cache/
+
+# OS files
+.DS_Store
+

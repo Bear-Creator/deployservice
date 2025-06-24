@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "deploy-service"
 version = "1.0.0"
 description = "API for deploying, backing up, restoring, and removing containerized applications"
-authors = [{name = "DeployService Team"}]
+authors = [{name = "Bear-creator"}]
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
@@ -33,6 +33,7 @@ dev = [
 
 [tool.black]
 line-length = 88
+skip-string-normalization = true
 target-version = ['py38']
 include = '\.pyi?$'
 extend-exclude = '''
@@ -91,4 +92,4 @@ env = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["api*"] 
+include = ["api*"]

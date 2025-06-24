@@ -1,13 +1,5 @@
 - hosts: target
   become: yes
-  vars:
-    container_name: "{{ container_name }}"
-    backup_image_name: "{{ backup_image_name }}"
-    volume_name: "{{ volume_name }}"
-    db_type: "{{ db_type }}"
-    db_user: "{{ db_user }}"
-    db_password: "{{ db_password }}"
-    db_name: "{{ db_name }}"
   roles:
     - podman
   tasks:

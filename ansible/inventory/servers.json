@@ -1,7 +1,14 @@
 {
-  "srv-91c5169a": {
-    "server_ip": "192.168.1.94",
-    "ssh_user": "bear",
-    "ssh_key_path": "C:\\Users\\BeaR\\PycharmProjects\\DeployService\\keys\\id_ed25519"
+  "srv-aeed4598": {
+    "server_ip": "192.168.1.100",
+    "ssh_user": "ubuntu"
+  },
+  "srv-ae306481": {
+    "server_ip": "192.168.1.100",
+    "ssh_user": "ubuntu"
+  },
+  "srv-de64c36f": {
+    "server_ip": "192.168.1.100",
+    "ssh_user": "ubuntu"
   }
 }
