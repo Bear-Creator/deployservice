@@ -49,13 +49,20 @@
    ```
 
 3. **Установите зависимости:**
-   ```bash
-   pip install -e .
-   # Для разработки:
-   pip install -e ".[dev]"
-   # или через Makefile:
-   make dev
-   ```
+   - Для обычного использования:
+     ```bash
+     pip install -e .
+     ```
+   - Для разработки (dev-зависимости):
+     ```bash
+     pip install -e .[dev]
+     ```
+   - или через Makefile:
+     ```bash
+     make install
+     # или
+     make develop
+     ```
 
 4. **Скопируйте и настройте переменные окружения:**
    ```bash

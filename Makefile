@@ -1,21 +1,23 @@
-.PHONY: help install dev test lint format clean run run-prod check setup
+.PHONY: help install develop test lint format clean run run-prod check setup
 
 help: ## Показать справку
 	@echo "Доступные команды:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-install: ## Установить зависимости
-	pip install -r requirements.txt
+install: ## Установить только основные зависимости
+	pip install -e .
 
-dev: ## Установить зависимости для разработки
-	pip install -e ".[dev]"
+develop: ## Установить dev-зависимости
+	pip install -e .[dev]
 
 test: ## Запустить тесты
 	pytest tests/ -v
 
-lint: ## Проверить код линтером
+lint: ## Линтинг кода
 	flake8 api/ tests/
 	mypy api/
+	black --check api/ tests/
+	isort --check api/ tests/
 
 format: ## Отформатировать код
 	black api/ tests/
@@ -38,6 +40,6 @@ run-prod: ## Запустить приложение в продакшн реж�
 
 check: format lint test ## Проверить код (форматирование + линтинг + тесты)
 
-setup: dev ## Настройка проекта для разработки
+setup: ## Настроить проект для разработки
 	cp env.example .env
 	@echo "Проект настроен! Отредактируйте .env файл под ваши нужды."

@@ -47,14 +47,14 @@ async def handle_operation(
     try:
         logger.info(
             f"Starting {operation_name}",
-            **{k: getattr(request, k, None) for k in request.__fields__},
+            **{k: getattr(request, k, None) for k in request.__class__.model_fields},
             server_ip=server["server_ip"],
         )
         ansible_func(**ansible_args)
         response = {
             "status": "success",
             "message": success_message,
-            **({k: getattr(request, k, None) for k in request.__fields__}),
+            **({k: getattr(request, k, None) for k in request.__class__.model_fields}),
             "server_ip": server["server_ip"],
         }
         if extra_response:
@@ -66,21 +66,21 @@ async def handle_operation(
         )
         logger.info(
             f"{operation_name.capitalize()} completed successfully",
-            **{k: getattr(request, k, None) for k in request.__fields__},
+            **{k: getattr(request, k, None) for k in request.__class__.model_fields},
             server_ip=server["server_ip"],
         )
         return response
     except Exception as e:
         logger.error(
             f"{operation_name.capitalize()} failed",
-            **{k: getattr(request, k, None) for k in request.__fields__},
+            **{k: getattr(request, k, None) for k in request.__class__.model_fields},
             server_ip=server["server_ip"],
             error=str(e),
         )
         error_response = {
             "status": "error",
             "message": f"{error_message}: {str(e)}",
-            **({k: getattr(request, k, None) for k in request.__fields__}),
+            **({k: getattr(request, k, None) for k in request.__class__.model_fields}),
             "server_ip": server["server_ip"],
         }
         background_tasks.add_task(
@@ -95,11 +95,10 @@ async def deploy_application(
     request: DeployRequest, background_tasks: BackgroundTasks, server: dict
 ) -> Dict[str, Any]:
     """Deploy a containerized application."""
-    db_config = request.database.dict() if request.database else None
+    db_config = request.database.model_dump() if request.database else None
     ansible_args = dict(
         server_ip=server["server_ip"],
         ssh_user=server["ssh_user"],
-        ssh_key_path=server["ssh_key_path"],
         container_image=request.container_image,
         volume_name=request.volume_name,
         db_config=db_config,
@@ -121,11 +120,10 @@ async def backup_application(
     request: BackupRequest, background_tasks: BackgroundTasks, server: dict
 ) -> Dict[str, Any]:
     """Backup a containerized application."""
-    db_config = request.database.dict() if request.database else None
+    db_config = request.database.model_dump() if request.database else None
     ansible_args = dict(
         server_ip=server["server_ip"],
         ssh_user=server["ssh_user"],
-        ssh_key_path=server["ssh_key_path"],
         container_name=request.container_name,
         backup_image_name=request.backup_image_name,
         volume_name=getattr(request, "volume_name", ""),
@@ -148,11 +146,10 @@ async def restore_application(
     request: RestoreRequest, background_tasks: BackgroundTasks, server: dict
 ) -> Dict[str, Any]:
     """Restore a containerized application."""
-    db_config = request.database.dict() if request.database else None
+    db_config = request.database.model_dump() if request.database else None
     ansible_args = dict(
         server_ip=server["server_ip"],
         ssh_user=server["ssh_user"],
-        ssh_key_path=server["ssh_key_path"],
         container_name=request.container_name,
         backup_image_file=request.backup_image_file,
         backup_db_file=request.backup_db_file,
@@ -179,7 +176,6 @@ async def remove_application(
     ansible_args = dict(
         server_ip=server["server_ip"],
         ssh_user=server["ssh_user"],
-        ssh_key_path=server["ssh_key_path"],
         container_name=request.container_name,
         volume_name=request.volume_name,
     )
@@ -210,14 +206,14 @@ def save_server(server_id: str, data: dict) -> None:
         json.dump(servers, f, ensure_ascii=False, indent=2)
 
 
-def get_server(server_id: str) -> dict:
+def get_server(server_id: str) -> Dict[str, Any]:
     if not SERVERS_JSON.exists():
         raise ValueError(f"Server DB not found: {SERVERS_JSON}")
     with open(SERVERS_JSON, "r", encoding="utf-8") as f:
-        servers = json.load(f)
+        servers: Dict[str, Any] = json.load(f)
     if server_id not in servers:
         raise ValueError(f"Server ID not found: {server_id}")
-    return servers[server_id]
+    return servers[server_id]  # type: ignore
 
 
 def get_ansible_host_line(server: dict) -> str:
@@ -225,32 +221,32 @@ def get_ansible_host_line(server: dict) -> str:
 
 
 def add_server_to_inventory(request: AddServerRequest) -> str:
-    """Добавляет сервер в servers.json и hosts.yml, возвращает server_id."""
+    """Настроить сервер через Ansible, затем добавить в servers.json."""
     server_id = generate_server_id()
     data = {
         "server_ip": request.server_ip,
         "ssh_user": request.ssh_user,
     }
-    save_server(server_id, data)
-    inventory_path = settings.ansible_inventory_dir / "hosts.yml"
+
+    inventory_path = os.path.join("ansible", "inventory", "hosts.yml")
     group_header = "[target]"
     line = get_ansible_host_line(data)
     with open(inventory_path, "w", encoding="utf-8") as f:
         f.write(f"{group_header}\n{line}")
 
-    # Вызов Ansible playbook для настройки сервера
-    ansible_dir = str(settings.ansible_dir)
-    playbook_path = os.path.join(ansible_dir, "playbooks", "setup_server.yml")
-    inventory = os.path.join(settings.ansible_inventory_dir, "hosts.yml")
-    pubkey_path = os.environ.get("DEPLOY_PUBKEY_PATH", "key/id_ed25519.pub")
+    playbook_path = os.path.join("ansible", "playbooks", "setup_server.yml")
+    pubkey_env = os.environ.get("DEPLOY_PUBKEY_PATH", "key/id_ed25519.pub")
+    pubkey_path = os.path.abspath(pubkey_env)
     command = [
         "ansible-playbook",
         "-i",
-        inventory,
+        inventory_path,
         playbook_path,
         "--extra-vars",
         f"deploy_pubkey_path={pubkey_path}",
     ]
-    subprocess.run(command, cwd=ansible_dir, check=True)
+    subprocess.run(command, check=True)
+
+    save_server(server_id, data)
 
     return server_id
